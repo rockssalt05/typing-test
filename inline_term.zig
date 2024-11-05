@@ -2,9 +2,11 @@ const Self = @This();
 const std = @import("std");
 
 pub const Color = enum(u8) { green, grey, reset, red };
-pub const key_esc = 27;
 
-const bufsize = 32;
+pub const key_esc = 27;
+pub const key_backspace = 127;
+
+pub const bufsize = 32;
 
 stdin_file: std.fs.File,
 stdin: @TypeOf(std.io.getStdIn().reader()),
@@ -75,6 +77,7 @@ pub fn clear(self: *Self) void {
 
 pub fn update(self: Self) !void {
     try self.stdout.print("\x1B[G", .{}); // go to beginning of line
+    // TODO: fix color printing
 
     var color = self.colors[0];
     var i_1: usize = 0;
