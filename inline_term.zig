@@ -1,7 +1,7 @@
 const Self = @This();
 const std = @import("std");
 
-pub const Color = enum(u8) { green, grey, reset, red };
+pub const Mode = enum(u8) { blue, red_underlined, grey, reset };
 
 pub const key_esc = 27;
 pub const key_backspace = 127;
@@ -15,8 +15,8 @@ old_term: std.posix.termios,
 
 cursor: usize,
 line: [bufsize]u8,
-colors: [bufsize]Color,
-color: Color,
+modes: [bufsize]Mode,
+mode: Mode,
 
 const error_set = std.posix.TermiosGetError || std.posix.TermiosSetError || std.posix.FcntlError;
 pub fn init() error_set!Self {
@@ -27,8 +27,8 @@ pub fn init() error_set!Self {
 
     self.cursor = 0;
     self.line   = .{' '}**bufsize;
-    self.colors = .{.reset}**bufsize;
-    self.color = .reset;
+    self.modes = .{.reset}**bufsize;
+    self.mode = .reset;
 
     // cbreak(); noecho();
     self.old_term = try std.posix.tcgetattr(self.stdin_file.handle);
@@ -61,14 +61,12 @@ pub fn print(self: *Self, comptime fmt: []const u8, args: anytype) !void {
     };
 
     const len = std.fmt.count(fmt, args);
-    for (self.cursor..self.cursor + len) |i| {
-        self.colors[i] = self.color;
-    }
+    @memset(self.modes[self.cursor..self.cursor + len], self.mode);
     self.cursor += len;
 }
 
 pub fn clear(self: *Self) void {
-    self.color = .reset;
+    self.mode = .reset;
     self.cursor = 0;
     for (&self.line) |*ch| {
         ch.* = ' ';
@@ -78,28 +76,29 @@ pub fn clear(self: *Self) void {
 pub fn update(self: Self) !void {
     try self.stdout.print("\x1B[G", .{}); // go to beginning of line
 
-    var color = self.colors[0];
+    var mode = self.modes[0];
     var i_1: usize = 0;
     var i_2: usize = 0;
     while (i_2 < self.line.len) : (i_2 += 1) {
-        if (self.colors[i_2] != color) {            
-            try self.updateColor(color);
+        if (self.modes[i_2] != mode) {
+            try self.updateMode(mode);
             try self.stdout.print("{s}", .{self.line[i_1..i_2]});
-            color = self.colors[i_2];
+            mode = self.modes[i_2];
             i_1 = i_2;
         }
     }
 
-    try self.updateColor(self.colors[i_1]);
+    try self.updateMode(self.modes[i_1]);
     try self.stdout.print("{s}\x1B[m", .{self.line[i_1..i_2]});
     try self.stdout.print("\x1B[{d}G", .{self.cursor + 1}); // go to cursor
 }
 
-fn updateColor(self: Self, color:  Color) !void {
-    try self.stdout.print("\x1B[{s}m", .{switch (color) {
-        .green => "1;32",
+fn updateMode(self: Self, mode:  Mode) !void {
+    try self.stdout.print("\x1B[m", .{});
+    try self.stdout.print("\x1B[{s}m", .{switch (mode) {
+        .blue => "1;34",
         .grey  => "1;30",
-        .red   => "1;31",
+        .red_underlined => "1;4;31",
         .reset => ""
     }});
 }
