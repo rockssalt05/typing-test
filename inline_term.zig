@@ -77,27 +77,31 @@ pub fn clear(self: *Self) void {
 
 pub fn update(self: Self) !void {
     try self.stdout.print("\x1B[G", .{}); // go to beginning of line
-    // TODO: fix color printing
 
     var color = self.colors[0];
     var i_1: usize = 0;
     var i_2: usize = 0;
     while (i_2 < self.line.len) : (i_2 += 1) {
         if (self.colors[i_2] != color) {            
-            try self.stdout.print("\x1B[{s}m", .{switch (color) {
-                .green => "1;32",
-                .grey  => "1;30",
-                .red   => "1;31",
-                .reset => ""
-            }});
+            try self.updateColor(color);
             try self.stdout.print("{s}", .{self.line[i_1..i_2]});
             color = self.colors[i_2];
             i_1 = i_2;
         }
     }
 
+    try self.updateColor(self.colors[i_1]);
     try self.stdout.print("{s}\x1B[m", .{self.line[i_1..i_2]});
     try self.stdout.print("\x1B[{d}G", .{self.cursor + 1}); // go to cursor
+}
+
+fn updateColor(self: Self, color:  Color) !void {
+    try self.stdout.print("\x1B[{s}m", .{switch (color) {
+        .green => "1;32",
+        .grey  => "1;30",
+        .red   => "1;31",
+        .reset => ""
+    }});
 }
 
 pub fn readInput(self: Self) !?u8 {
