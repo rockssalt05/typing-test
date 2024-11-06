@@ -3,59 +3,61 @@ const std = @import("std");
 const InlineTerm = @import("inline_term.zig");
 
 pub fn main() !void {
+    // TODO: take arguments
+
     var term = try InlineTerm.init();
-    defer term.deinit();
     errdefer term.deinit();
 
+    // TODO: fix crash when text.len < text_space
     const text =
-        "Stenaelurillus albus is a species of jumping spider" ++
-        " in the genus Stenaelurillus that lives in India. I" ++
-        "t was first described in 2015 by Pothalil A. Sebast" ++
-        "ian, Pradeep M. Sankaran, Jobi J. Malamel and Mathe" ++
-        "w M. Joseph.";
+        "Are you feeling nervous? Are you having fun? " ++ 
+        "It's almost over, It's just begun, Don't overthink this, " ++ 
+        "Look in my eye, Don't be scared, Don't be shy, " ++
+        "Come on in, the water's fine";
+    var modes: [text.len]InlineTerm.Mode = .{.grey}**text.len;
 
     var t0: u64 = @intCast(std.time.timestamp());
     var t: u64 = 0;
     var key: ?u8 = 0;
     var text_pos: usize = 0;
     while (true) {
+        // input
         key = try term.readInput();
-        if (key) |k| if (k == InlineTerm.key_esc) break;
+        if (key) |k| { switch (k) {
+            InlineTerm.key_esc => break,
+            InlineTerm.key_backspace => {
+                text_pos -= if (text_pos == 0) 0 else 1;
+                modes[text_pos] = .grey;
+            },
+            else => {
+                modes[text_pos] = if (k == text[text_pos]) .reset else .red_underlined;
+                text_pos += if (text_pos >= text.len) 0 else 1;
+            }
+        }}
 
         term.clear();
 
-        term.color = .green;
+        term.mode = .blue;
         try term.print("  {d:>3}  ", .{t});
 
         // window to display
         const text_space = InlineTerm.bufsize - term.cursor;
-        const start = @min(if (text_pos < 4) 0 else text_pos - 4, text.len - text_space);
+        const offset = 5;
+        const start = @min(if (text_pos < offset) 0 else text_pos - offset, text.len - text_space);
         const end = start + text_space;
 
         const cursor = term.cursor;
-        term.color = .grey;
         try term.print("{s}", .{text[start..end]});
+        // overwrite auto set mode
+        @memcpy(term.modes[cursor..], modes[start..end]);
 
         // cursor pos
-        const pad = 4;
-        term.cursor = cursor + if (text_pos <= pad)
+        term.cursor = cursor + if (text_pos <= offset)
             text_pos
-        else if (text_pos > text.len - text_space + pad)
+        else if (text_pos > text.len - text_space + offset)
             text_pos - start
         else
-            pad;
-
-        // input
-        if (key) |k| {
-            if (k == InlineTerm.key_backspace) {
-                text_pos -= if (text_pos == 0) 0 else 1;
-                // TODO: set color
-            } else {
-                // TODO: set color
-                //
-                text_pos += if (text_pos >= text.len) 0 else 1;
-            }
-        }
+            offset;
 
         // loop stuff
         try term.update();
@@ -65,5 +67,29 @@ pub fn main() !void {
             t0 = t1;
         }
         std.time.sleep(std.time.ns_per_s / 60);
+        if (text_pos >= text.len) break;
     }
+
+    const stdout = std.io.getStdOut().writer();
+
+    if (key) |k| if (k == InlineTerm.key_esc) {
+        term.deinit();
+        try stdout.print("exit\n", .{});
+        return;
+    };
+
+    var right: f32 = 0;
+    for (modes) |mode| {
+        switch (mode) {
+            .reset => right += 1,
+            .red_underlined => {},
+            else => unreachable
+        }
+    }
+
+    term.deinit();
+    // print stats
+    try stdout.print("    time: {d} seconds\n", .{t});
+    try stdout.print("   right: {d}/{d}\n", .{right, text.len});
+    try stdout.print("accuracy: {d:>2.2}%\n", .{(right / text.len) * 100});
 }
