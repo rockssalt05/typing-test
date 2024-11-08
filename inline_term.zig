@@ -1,12 +1,12 @@
 const Self = @This();
 const std = @import("std");
 
-pub const Mode = enum(u8) { blue, red_underlined, grey, reset };
+pub const Mode = enum(u8) { blue, red_underlined, grey, yellow, yellow_dark, reset };
 
 pub const key_esc = 27;
 pub const key_backspace = 127;
 
-pub const bufsize = 32;
+pub const bufsize = 80;
 
 stdin_file: std.fs.File,
 stdin: @TypeOf(std.io.getStdIn().reader()),
@@ -26,7 +26,7 @@ pub fn init() error_set!Self {
     self.stdout = std.io.getStdOut().writer();
 
     self.cursor = 0;
-    self.line   = .{' '}**bufsize;
+    self.line = .{' '}**bufsize;
     self.modes = .{.reset}**bufsize;
     self.mode = .reset;
 
@@ -50,6 +50,7 @@ pub fn deinit(self: *Self) void {
     self.stdout.print("\n", .{}) catch {};
 }
 
+// will also try to print control chars that could mess up the line after update()
 pub fn print(self: *Self, comptime fmt: []const u8, args: anytype) !void {
     var fbs = std.io.fixedBufferStream(self.line[self.cursor..]);
     const writer = fbs.writer();
@@ -89,17 +90,18 @@ pub fn update(self: Self) !void {
     }
 
     try self.updateMode(self.modes[i_1]);
-    try self.stdout.print("{s}\x1B[m", .{self.line[i_1..i_2]});
+    try self.stdout.print("{s}\x1B[0m", .{self.line[i_1..i_2]});
     try self.stdout.print("\x1B[{d}G", .{self.cursor + 1}); // go to cursor
 }
 
 fn updateMode(self: Self, mode:  Mode) !void {
-    try self.stdout.print("\x1B[m", .{});
-    try self.stdout.print("\x1B[{s}m", .{switch (mode) {
-        .blue => "1;34",
+    try self.stdout.print("\x1B[0;{s}m", .{switch (mode) {
+        .blue => "1;36",
         .grey  => "1;30",
         .red_underlined => "1;4;31",
-        .reset => ""
+        .yellow => "1;33",
+        .yellow_dark => "0;33",
+        .reset => "0"
     }});
 }
 
