@@ -84,7 +84,7 @@ pub fn main() !void {
         // cursor pos
         term.cursor = cursor + if (text_pos <= offset)
             text_pos
-        else if (text_pos > text.len - text_space + offset)
+        else if (text_pos + text_space > text.len + offset)
             text_pos - start
         else
             offset;
